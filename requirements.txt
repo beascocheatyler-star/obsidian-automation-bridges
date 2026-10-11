@@ -1,0 +1,16 @@
+# Direct dependencies. Minimum-version pins: these are the versions this code
+# was developed and verified against (Python 3.14, 2026-10-11).
+#
+#   python3 -m venv .venv
+#   source .venv/bin/activate
+#   pip install -r requirements.txt
+
+# Canvas LMS bridge
+canvasapi>=3.6.0
+
+# Gmail bridge
+google-api-python-client>=2.201.0
+google-auth-oauthlib>=1.5.0
+
+# Both — loads .env
+python-dotenv>=1.2.4

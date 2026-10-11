@@ -24,7 +24,6 @@ import re
 import sys
 import glob
 import base64
-import json
 from collections import defaultdict
 from datetime import datetime
 from email.mime.text import MIMEText
@@ -124,7 +123,16 @@ def header(payload, name):
 
 def sender_domain(from_header):
     m = re.search(r"@([\w.-]+)", from_header)
-    return m.group(1).lower().lstrip("mail.").lstrip("email.") if m else "unknown"
+    if not m:
+        return "unknown"
+    domain = m.group(1).lower().strip(".")
+    # Strip delivery subdomains by exact prefix. Not str.lstrip() — that takes a
+    # SET of characters, so lstrip("mail.") turned "amazon.com" into "mazon.com".
+    for prefix in ("mail.", "email.", "e.", "em.", "mailer.", "reply.", "mg."):
+        if domain.startswith(prefix) and len(domain) > len(prefix):
+            domain = domain[len(prefix):]
+            break
+    return domain
 
 
 def sender_label(from_header):

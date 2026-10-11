@@ -27,7 +27,15 @@ except ImportError:
 try:
     from canvasapi import Canvas
 except ImportError:
-    sys.exit("Error: canvasapi not found. Run: pip install canvasapi python-dotenv")
+    sys.exit("Error: canvasapi not found. Run: pip install -r requirements.txt")
+
+# A course with quizzes switched off answers 403/404. That is expected and gets
+# skipped quietly. Every other error is real and gets reported — see collect().
+try:
+    from canvasapi.exceptions import Forbidden, ResourceDoesNotExist
+    EXPECTED_MISSING_FEATURE = (Forbidden, ResourceDoesNotExist)
+except ImportError:  # older canvasapi; fall back to skipping nothing silently
+    EXPECTED_MISSING_FEATURE = ()
 
 # ----------------------------------------------------------------------
 # CONFIG
@@ -96,8 +104,14 @@ def parse_due(raw):
 
 
 def collect(course):
-    """Return list of (due_datetime_or_None, title, kind) for one course."""
+    """Return (items, quiz_warning).
+
+    items is a list of (due_datetime_or_None, title, kind).
+    quiz_warning is None, or a message when the quiz fetch failed for a reason
+    that is NOT simply "quizzes are turned off for this course".
+    """
     items = []
+    quiz_warning = None
 
     for a in course.get_assignments():
         name = getattr(a, "name", None)
@@ -110,10 +124,14 @@ def collect(course):
             title = getattr(q, "title", None)
             if title:
                 items.append((parse_due(getattr(q, "due_at", None)), title, "quiz"))
-    except Exception:
-        pass  # many courses have quizzes disabled; not an error
+    except EXPECTED_MISSING_FEATURE:
+        pass  # quizzes genuinely disabled for this course; not an error
+    except Exception as exc:
+        # Anything else (auth, network, rate limit) is a real failure and must
+        # not be swallowed — a silent skip here would hide missing exams.
+        quiz_warning = f"quiz fetch failed: {type(exc).__name__}: {exc}"
 
-    return items
+    return items, quiz_warning
 
 
 def fmt(due, title, kind, course_label):
@@ -158,10 +176,13 @@ def main():
         rank = priority_of(name)
 
         try:
-            items = collect(course)
+            items, quiz_warning = collect(course)
         except Exception as exc:
-            failures.append(f"{name}: {exc}")
+            failures.append(f"{name}: {type(exc).__name__}: {exc}")
             continue
+
+        if quiz_warning:
+            failures.append(f"{name}: {quiz_warning}")
 
         for due, title, kind in items:
             row = (rank, due, title, kind, name)

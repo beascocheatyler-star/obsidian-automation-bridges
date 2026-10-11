@@ -19,15 +19,25 @@ filter. That filter silently excluded every past-due item — so the generated
 report looked clean and complete while hiding overdue work entirely. A report
 that is confidently wrong is worse than no report.
 
+In practice the filter concealed **29 past-due items out of 58 total.**
+
 `canvas_bridge_v2.py` retrieves the full assignment set and buckets it locally
 into past-due / due-this-week / upcoming. Both versions are kept so the
-difference is auditable.
+difference is auditable — v1 is marked superseded in its own module docstring,
+with both preserved bugs flagged inline at the lines that cause them. **Run v2;
+v1 exists only as a defect record.**
 
 This drove the rest of the error handling. A missing `due_at` returns `None`
-instead of raising mid-write. A course with quizzes disabled is skipped, not
-treated as an error. A course that fails to fetch is recorded and surfaced in
-the output with a visible `SYNC INCOMPLETE` warning, so a partial sync can
-never be mistaken for a complete one.
+instead of raising mid-write. A course that fails to fetch is recorded and
+surfaced in the output with a visible `SYNC INCOMPLETE` warning, so a partial
+sync can never be mistaken for a complete one.
+
+The quiz fetch shows the principle at its narrowest. Catching every exception
+there would have reintroduced the original bug in a new place — missing exams,
+silently. So only the two statuses that genuinely mean "this course has quizzes
+switched off" (`Forbidden`, `ResourceDoesNotExist`) are skipped quietly.
+An auth failure, a network drop, or a rate limit is a real error and is
+reported. **The exception you swallow is the data you lose.**
 
 **2. Least privilege as an architectural constraint.**
 
@@ -71,8 +81,7 @@ No absolute paths, usernames, or personal data are committed. See
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install canvasapi python-dotenv \
-    google-api-python-client google-auth-oauthlib
+pip install -r requirements.txt
 ```
 
 Copy `.env.example` to `.env` and fill in your own values. `.env` is
